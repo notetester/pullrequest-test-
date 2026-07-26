@@ -1,0 +1,8 @@
+{
+  "name": "dwg-nuwon-diagnostic",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@mlightcad/libredwg-web": "0.7.9"
+  }
+}
