@@ -1,14 +1,12 @@
 name: Temporary Nuwon DWG diagnostic
 
 on:
-  push:
+  pull_request:
     branches:
-      - tmp/dwg-nuwon-20260727
-    paths-ignore:
-      - result/**
+      - master
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   diagnose:
@@ -19,8 +17,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: dwg-work/package-lock.json
       - name: Install parser
         working-directory: dwg-work
         run: npm install --no-audit --no-fund
@@ -29,10 +25,10 @@ jobs:
       - name: Diagnose drawing
         working-directory: dwg-work
         run: node diagnose.mjs nuwon.dwg ../result
-      - name: Commit diagnostics
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add result
-          git commit -m "chore: capture Nuwon DWG diagnostics [skip ci]"
-          git push
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuwon-dwg-diagnostic
+          path: result
+          if-no-files-found: error
+          retention-days: 1
