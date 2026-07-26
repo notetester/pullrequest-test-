@@ -1,0 +1,38 @@
+name: Temporary Nuwon DWG diagnostic
+
+on:
+  push:
+    branches:
+      - tmp/dwg-nuwon-20260727
+    paths-ignore:
+      - result/**
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: dwg-work/package-lock.json
+      - name: Install parser
+        working-directory: dwg-work
+        run: npm install --no-audit --no-fund
+      - name: Download public Nuwon drawing
+        run: curl --fail --location --retry 3 --output dwg-work/nuwon.dwg https://edu-design.sen.go.kr/rest/file/35882
+      - name: Diagnose drawing
+        working-directory: dwg-work
+        run: node diagnose.mjs nuwon.dwg ../result
+      - name: Commit diagnostics
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add result
+          git commit -m "chore: capture Nuwon DWG diagnostics [skip ci]"
+          git push
