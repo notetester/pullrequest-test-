@@ -1,0 +1,8 @@
+{
+  "name": "seongnae-main-f01-diagnostic",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@mlightcad/libredwg-web": "0.7.9"
+  }
+}
