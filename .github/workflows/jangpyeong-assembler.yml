@@ -1,0 +1,86 @@
+name: Temporary Jangpyeong inventory assembler
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions:
+  contents: read
+
+jobs:
+  assemble:
+    if: github.head_ref == 'tmp/jangpyeong-assembler-20260728'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Assemble exact GAME branch inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p result
+          python - <<'PY'
+          from pathlib import Path
+          import base64
+          import gzip
+          import hashlib
+          import json
+          import urllib.parse
+          import urllib.request
+
+          branch = 'tech-art/ta040-jangpyeong-inventory-delivery'
+          base = 'https://api.github.com/repos/notetester/GAME/contents/tools/dwg/.ta040-upload/'
+          parts = []
+          for index in range(1, 16):
+              name = f'jangpyeong_inventory.json.gz.b64.{index:03d}'
+              query = urllib.parse.urlencode({'ref': branch})
+              request = urllib.request.Request(
+                  base + name + '?' + query,
+                  headers={
+                      'Accept': 'application/vnd.github.raw+json',
+                      'User-Agent': 'temporary-jangpyeong-assembler',
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  chunk = response.read().decode('ascii').strip()
+              if not chunk:
+                  raise SystemExit(f'empty transport chunk: {name}')
+              parts.append(chunk)
+
+          compressed = base64.b64decode(''.join(parts), validate=True)
+          decoded = gzip.decompress(compressed)
+          expected_sha = '6a337181dc0db3f7be52c8cd5dd5128f44b83ed620e6e86d1888436a47d66681'
+          actual_sha = hashlib.sha256(decoded).hexdigest()
+          if actual_sha != expected_sha:
+              raise SystemExit(f'SHA-256 mismatch: {actual_sha}')
+          if len(decoded) != 1620581:
+              raise SystemExit(f'byte-size mismatch: {len(decoded)}')
+          payload = json.loads(decoded.decode('utf-8'))
+          if payload.get('schema') != 'school_dwg_presemantic_inventory':
+              raise SystemExit('inventory schema drift')
+
+          Path('result/_inventory.json').write_bytes(decoded)
+          summary = {
+              'sha256': actual_sha,
+              'bytes': len(decoded),
+              'schema': payload.get('schema'),
+              'source_sha256': 'a0089d9647fb9298d96184a261803a606d1559fc90302c35a977d0c3c3252300',
+              'transport_parts': len(parts),
+          }
+          Path('result/assembly-summary.json').write_text(
+              json.dumps(summary, ensure_ascii=False, indent=2) + '\n',
+              encoding='utf-8',
+          )
+          print(json.dumps(summary))
+          PY
+      - name: Upload validated inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: jangpyeong-inventory-assembled
+          path: result
+          if-no-files-found: error
+          retention-days: 1
