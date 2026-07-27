@@ -1,0 +1,51 @@
+name: Temporary Jangpyeong transport assembly
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble public GAME transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p result chunks
+          for i in $(seq -w 1 15); do
+            curl --fail --location --retry 3 \
+              "https://raw.githubusercontent.com/notetester/GAME/tech-art/ta040-jangpyeong-inventory-delivery/tools/dwg/.ta040-upload/jangpyeong_inventory.json.gz.b64.0${i}" \
+              -o "chunks/part.${i}"
+          done
+          python - <<'PY'
+          from pathlib import Path
+          import base64, gzip, hashlib, json
+          encoded = ''.join(p.read_text(encoding='ascii').strip() for p in sorted(Path('chunks').glob('part.*')))
+          decoded = gzip.decompress(base64.b64decode(encoded, validate=True))
+          expected = '6a337181dc0db3f7be52c8cd5dd5128f44b83ed620e6e86d1888436a47d66681'
+          actual = hashlib.sha256(decoded).hexdigest()
+          assert actual == expected, (actual, expected)
+          assert len(decoded) == 1620581, len(decoded)
+          payload = json.loads(decoded.decode('utf-8'))
+          assert payload.get('schema') == 'school_dwg_presemantic_inventory'
+          Path('result/_inventory.json').write_bytes(decoded)
+          Path('result/verification.txt').write_text(
+              f'sha256={actual}\nbytes={len(decoded)}\nraw_entities={payload.get("entity_counts", {}).get("raw")}\n',
+              encoding='utf-8'
+          )
+          print(actual, len(decoded))
+          PY
+      - name: Upload assembled inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: jangpyeong-inventory-assembled
+          path: result
+          retention-days: 1
+          if-no-files-found: error
