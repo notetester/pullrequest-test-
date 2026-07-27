@@ -1,0 +1,34 @@
+name: Temporary Seongnae geometry diagnostic
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install exact parser
+        working-directory: seongnae-work
+        run: npm install --no-audit --no-fund
+      - name: Download exact public DWG
+        run: curl --fail --location --retry 3 --output seongnae-work/seongnae.dwg https://edu-design.sen.go.kr/rest/file/49209
+      - name: Inspect authorized window
+        working-directory: seongnae-work
+        run: node inspect.mjs seongnae.dwg ../result
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: seongnae-main-f01-diagnostic
+          path: result
+          retention-days: 1
+          if-no-files-found: error
